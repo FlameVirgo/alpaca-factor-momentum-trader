@@ -278,6 +278,31 @@ window* — not these. This is the curve-fitting trap (§0) caught in the act.
 
 ---
 
+## 2F. Maximally-independent universe — n caps low, the OOS gain is a regime fluke
+
+§2E failed because the extra ETFs were *correlated*. Here we do it right:
+greedily select the largest set of *predominantly independent* liquid ETFs
+(in-sample correlations only, no look-ahead) — [research/independent_universe.py](research/independent_universe.py).
+
+- **The number of independent ETFs caps low:** n=9 at |corr|<0.60, n=10 at 0.70,
+  n=13 at 0.80. You **cannot** manufacture MOP's 58 independent futures from
+  liquid ETFs — the math ceiling is ~10. The selected set leans
+  commodities/credit/dollar/REIT plus a single equity (QQQ).
+- **The independent sleeve looks great OOS but is a fluke:** TSMOM on the n=10
+  set scores OOS Sharpe **0.812** (> orig-6 0.765 > SPY 0.778), 5.7% vol, −9.5%
+  DD. **But its in-sample Sharpe is only 0.226** (vs orig-6's 0.603). OOS ≫
+  in-sample by that much = it worked in 2019–2026 and *not* in 2011–2018 →
+  regime-dependent, not durable. Untrustworthy on exactly the same logic as §2E.
+- **It doesn't improve the deployed blend:** blended-no-overlay is ~unchanged
+  (indep OOS 0.807 vs orig-6 0.809), and orig-6 is *more consistent* in-sample
+  (0.629 vs 0.554).
+
+**Conclusion:** more independent ETFs isn't a free lunch — n is capped ~10 and
+on this data it added regime-dependence, not robust Sharpe. Keep the original
+6-ETF cross-asset universe; it's the most consistent across both halves.
+
+---
+
 ## 2B. News / Social Sentiment — Evaluated, Deferred (mostly rejected)
 
 **Verdict: do NOT add sentiment as an alpha signal in v1. Defer one narrow use to Phase 3.**
