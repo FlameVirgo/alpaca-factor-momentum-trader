@@ -41,8 +41,18 @@ def run_backtest(
     prices: pd.DataFrame,
     target_weights: pd.DataFrame,
     costs: CostModel,
+    rf_returns: pd.Series | None = None,
+    execution_lag: int = 1,
 ) -> BacktestResult:
-    """Run the weighted-portfolio backtest and return a BacktestResult."""
+    """
+    Run the weighted-portfolio backtest and return a BacktestResult.
+
+    `execution_lag` (default 1) shifts the target weights forward by N trading
+    days: a signal computed on a month-end *close* is only traded the next
+    session, which removes the 1-day look-ahead of acting on the same close you
+    used to decide. `rf_returns` is a daily risk-free return series — the
+    unallocated (cash) fraction of the book earns it, as real cash would.
+    """
     prices = prices.sort_index()
     daily_returns = prices.pct_change().fillna(0.0)
 
@@ -50,6 +60,15 @@ def run_backtest(
     # rebalances. Columns restricted to those present in prices.
     cols = [c for c in target_weights.columns if c in prices.columns]
     tw = target_weights[cols].reindex(prices.index).ffill().fillna(0.0)
+    if execution_lag:
+        # Decide at the close, trade `execution_lag` sessions later (no look-ahead).
+        tw = tw.shift(execution_lag).fillna(0.0)
+
+    # Risk-free daily return earned on idle cash (0 if not supplied).
+    if rf_returns is None:
+        rf = pd.Series(0.0, index=prices.index)
+    else:
+        rf = rf_returns.reindex(prices.index).fillna(0.0)
 
     cost_rate = _cost_rate(costs)
 
@@ -67,19 +86,20 @@ def run_backtest(
         turn = float((target - prev_w).abs().sum())
         cost = turn * cost_rate
 
-        # Day's gross return from the weights held INTO this day (target set at
-        # prior close / this open). Using same-day weights * same-day returns is
-        # a standard simplification for daily monthly-rebalanced ETF backtests.
-        day_ret = float((target * daily_returns.loc[date]).sum())
+        # Day's gross return = invested legs + the idle cash earning the
+        # risk-free rate. Cash weight is whatever the target leaves unallocated.
+        cash_w = max(0.0, 1.0 - float(target.sum()))
+        day_ret = float((target * daily_returns.loc[date]).sum()) + cash_w * float(rf.loc[date])
 
         gross.append(day_ret)
         net.append(day_ret - cost)
         turnover_series.append(turn)
         held_weights.append(target)
 
-        # Drift weights with the day's returns for next-day turnover accuracy.
+        # Drift weights (and cash) with the day's returns for next-day turnover.
         grown = target * (1.0 + daily_returns.loc[date])
-        total = grown.sum()
+        grown_cash = cash_w * (1.0 + float(rf.loc[date]))
+        total = grown.sum() + grown_cash
         prev_w = grown / total if total != 0 else target
 
     idx = prices.index

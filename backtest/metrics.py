@@ -9,6 +9,19 @@ import pandas as pd
 
 TRADING_DAYS = 252
 
+# `rf` throughout may be either a scalar *annual* rate (e.g. 0.04) or a pandas
+# Series of *daily* risk-free returns aligned to the return index (the honest
+# choice — real T-bill yields move over time). _excess() normalizes both.
+
+
+def _excess(returns: pd.Series, rf, periods_per_year: int = TRADING_DAYS) -> pd.Series:
+    """Daily excess return over the risk-free rate (scalar-annual or daily Series)."""
+    if rf is None:
+        return returns
+    if isinstance(rf, (int, float)):
+        return returns - rf / periods_per_year
+    return returns - rf.reindex(returns.index).fillna(0.0)
+
 
 def annual_return(returns: pd.Series, periods_per_year: int = TRADING_DAYS) -> float:
     """Geometric (CAGR-style) annualized return."""
@@ -25,19 +38,22 @@ def annual_vol(returns: pd.Series, periods_per_year: int = TRADING_DAYS) -> floa
     return float(returns.std(ddof=0) * np.sqrt(periods_per_year))
 
 
-def sharpe(returns: pd.Series, rf: float = 0.0, periods_per_year: int = TRADING_DAYS) -> float:
-    """Annualized Sharpe ratio. `rf` is the annual risk-free rate."""
-    if returns.std(ddof=0) == 0 or len(returns) == 0:
-        return 0.0
-    excess = returns - rf / periods_per_year
-    return float(excess.mean() / returns.std(ddof=0) * np.sqrt(periods_per_year))
-
-
-def sortino(returns: pd.Series, rf: float = 0.0, periods_per_year: int = TRADING_DAYS) -> float:
-    """Annualized Sortino ratio (downside-deviation denominator)."""
+def sharpe(returns: pd.Series, rf=0.0, periods_per_year: int = TRADING_DAYS) -> float:
+    """Annualized Sharpe ratio on *excess* return over `rf` (scalar or Series)."""
     if len(returns) == 0:
         return 0.0
-    excess = returns - rf / periods_per_year
+    excess = _excess(returns, rf, periods_per_year)
+    sd = excess.std(ddof=0)
+    if sd == 0:
+        return 0.0
+    return float(excess.mean() / sd * np.sqrt(periods_per_year))
+
+
+def sortino(returns: pd.Series, rf=0.0, periods_per_year: int = TRADING_DAYS) -> float:
+    """Annualized Sortino ratio (downside-deviation denominator) on excess return."""
+    if len(returns) == 0:
+        return 0.0
+    excess = _excess(returns, rf, periods_per_year)
     downside = excess[excess < 0]
     dd = downside.std(ddof=0)
     if dd == 0:
