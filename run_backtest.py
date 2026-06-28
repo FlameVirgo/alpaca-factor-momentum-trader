@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+"""
+RHDM backtest driver — pulls historical ETF data, builds monthly target weights
+for every sleeve and the full portfolio, runs the cost-aware backtester, and
+prints a full performance summary with an in-sample / out-of-sample split.
+
+Usage:
+    python run_backtest.py                 # 15y, default OOS split at 2019-01-01
+    python run_backtest.py --refresh       # re-pull data from source
+    python run_backtest.py --oos 2020-01-01
+
+Data comes from the free Yahoo loader (data/market_data.py) so it runs with no
+Alpaca keys. This is research/validation; live trading uses Alpaca data + the
+paper endpoint (see PLAN.md Phase 2).
+"""
+from __future__ import annotations
+
+import argparse
+
+import pandas as pd
+
+from config import SETTINGS, TSMOM_UNIVERSE, SECTOR_UNIVERSE, BENCHMARK
+from data.market_data import get_daily_closes
+from portfolio.allocator import build_target_weights
+from backtest.engine import run_backtest, buy_and_hold, month_end_dates
+from backtest.metrics import summary, format_summary
+
+
+def _bh_sixty_forty(prices: pd.DataFrame) -> pd.Series:
+    """Classic 60/40 SPY/TLT daily returns, monthly rebalanced (benchmark #2)."""
+    rets = prices[["SPY", "TLT"]].pct_change().fillna(0.0)
+    return 0.6 * rets["SPY"] + 0.4 * rets["TLT"]
+
+
+def run(refresh: bool, oos_start: str) -> None:
+    params, risk, costs = SETTINGS.params, SETTINGS.risk, SETTINGS.costs
+    symbols = sorted(set(TSMOM_UNIVERSE) | set(SECTOR_UNIVERSE) | {BENCHMARK})
+
+    print(f"Loading {len(symbols)} symbols (cached unless --refresh)...")
+    prices = get_daily_closes(symbols, range_="15y", refresh=refresh)
+    print(f"  {prices.index[0].date()} → {prices.index[-1].date()}  "
+          f"({len(prices)} trading days)\n")
+
+    tsmom_prices = prices[TSMOM_UNIVERSE]
+    sector_prices = prices[SECTOR_UNIVERSE]
+    rebal = month_end_dates(prices.index)
+
+    weights = build_target_weights(
+        tsmom_prices, sector_prices, rebal, params, risk, apply_vol_overlay=True
+    )
+    blended_only = build_target_weights(
+        tsmom_prices, sector_prices, rebal, params, risk, apply_vol_overlay=False
+    )
+
+    # Build the return series for each strategy + benchmarks.
+    series: dict[str, pd.Series] = {
+        "RHDM (full: blend + vol overlay)": run_backtest(prices, weights["final"], costs).returns,
+        "Blended (no vol overlay)": run_backtest(prices, blended_only["final"], costs).returns,
+        "Sleeve A — TSMOM only": run_backtest(prices, weights["tsmom"], costs).returns,
+        "Sleeve B — Sector rotation only": run_backtest(prices, weights["xsec"], costs).returns,
+        "Benchmark — Buy & Hold SPY": buy_and_hold(prices, BENCHMARK),
+        "Benchmark — 60/40 SPY/TLT": _bh_sixty_forty(prices),
+    }
+
+    rf = 0.0  # set a risk-free rate here if desired
+
+    def report(label: str, window: tuple[str, str] | None) -> None:
+        print("=" * 60)
+        print(label)
+        print("=" * 60)
+        rows = []
+        for name, ret in series.items():
+            r = ret
+            if window:
+                r = r.loc[(r.index >= window[0]) & (r.index <= window[1])]
+            s = summary(r, name=name, rf=rf)
+            rows.append(s)
+            print(format_summary(s))
+            print()
+        # Compact comparison table.
+        table = pd.DataFrame(rows).set_index("name")[
+            ["ann_return", "ann_vol", "sharpe", "sortino", "max_drawdown", "calmar"]
+        ]
+        with pd.option_context("display.float_format", lambda x: f"{x:0.3f}"):
+            print(table.to_string())
+        print()
+
+    full_start = str(prices.index[0].date())
+    full_end = str(prices.index[-1].date())
+    report(f"FULL SAMPLE  {full_start} → {full_end}", None)
+    report(f"IN-SAMPLE   {full_start} → {oos_start}", (full_start, oos_start))
+    report(f"OUT-OF-SAMPLE  {oos_start} → {full_end}", (oos_start, full_end))
+
+    # Hypothesis checks (PLAN.md §2A) on the out-of-sample window.
+    oos = lambda n: summary(
+        series[n].loc[series[n].index >= oos_start], name=n
+    )
+    rhdm = oos("RHDM (full: blend + vol overlay)")
+    tsmom = oos("Sleeve A — TSMOM only")
+    sector = oos("Sleeve B — Sector rotation only")
+    spy = oos("Benchmark — Buy & Hold SPY")
+    print("=" * 60)
+    print(f"FALSIFIABLE HYPOTHESES (out-of-sample {oos_start}+)")
+    print("=" * 60)
+    h1 = rhdm["sharpe"] > max(tsmom["sharpe"], sector["sharpe"])
+    h2 = abs(rhdm["max_drawdown"]) < abs(spy["max_drawdown"])
+    h3 = rhdm["sharpe"] > spy["sharpe"]
+    print(f"  H1  RHDM Sharpe > best single sleeve   : "
+          f"{rhdm['sharpe']:.2f} vs {max(tsmom['sharpe'], sector['sharpe']):.2f}"
+          f"   {'PASS' if h1 else 'FAIL'}")
+    print(f"  H2  RHDM maxDD < SPY maxDD              : "
+          f"{rhdm['max_drawdown']:.1%} vs {spy['max_drawdown']:.1%}"
+          f"   {'PASS' if h2 else 'FAIL'}")
+    print(f"  H3  RHDM Sharpe > Buy&Hold SPY Sharpe   : "
+          f"{rhdm['sharpe']:.2f} vs {spy['sharpe']:.2f}"
+          f"   {'PASS' if h3 else 'FAIL'}")
+    print()
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description="RHDM backtest")
+    ap.add_argument("--refresh", action="store_true", help="re-pull data from source")
+    ap.add_argument("--oos", default="2019-01-01", help="out-of-sample start date")
+    args = ap.parse_args()
+    run(refresh=args.refresh, oos_start=args.oos)
+
+
+if __name__ == "__main__":
+    main()

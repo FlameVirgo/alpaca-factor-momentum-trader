@@ -1,0 +1,12 @@
+# Core trading + data
+alpaca-py>=0.20.0
+
+# Numerics / data handling
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Config / env
+python-dotenv>=1.0.0
+
+# Plotting (backtest reports)
+matplotlib>=3.7.0

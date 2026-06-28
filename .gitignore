@@ -1,0 +1,43 @@
+# ─── SECRETS — never commit these ───────────────────────────────
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets.*
+credentials.*
+
+# ─── Python ─────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.python-version
+
+# ─── Data / cache / logs (can be large or sensitive) ────────────
+data_cache/
+*.csv
+*.parquet
+*.pkl
+*.feather
+*.sqlite
+*.db
+logs/
+*.log
+
+# ─── Notebooks / IDE / OS ───────────────────────────────────────
+.ipynb_checkpoints/
+.idea/
+.vscode/
+.DS_Store
+
+# ─── Backtest / runtime outputs ─────────────────────────────────
+results/
+output/
+*.png
+*.html
