@@ -245,6 +245,39 @@ designed.
 
 ---
 
+## 2E. Variant research — broaden / short / risk-scale (none adopted)
+
+Tested all 8 permutations of three TSMOM levers via
+[research/permutations.py](research/permutations.py) — (a) broad ~18-ETF
+cross-asset universe, (b) long/short leg, (c) inverse-vol (equal-risk) sizing —
+weekly, OOS 2019+, after costs + 1%/yr short borrow.
+
+**Result: no robust improvement; the highest-OOS-Sharpe combo is an overfitting
+artifact.** Evidence the winner is noise, not edge:
+
+- Highest full-RHDM **OOS** Sharpe = combo **"abc"** (all three) at **0.775** —
+  but its *in-sample* Sharpe (0.578) is *worse* than the plain sleeve (0.658),
+  and the best *in-sample* combo is **"none"**. OOS winner ≠ in-sample winner →
+  the harness flags it as noise.
+- "abc" includes the **short leg (b), which individually destroys the TSMOM
+  sleeve** (OOS Sharpe ~0.26–0.32, in-sample *negative*): shorting cross-asset
+  ETFs bled through the 2011–2019 bull. A "winning" combo built on an
+  individually-catastrophic lever is the definition of fitting noise.
+- **(a) broad universe didn't help** (sleeve OOS 0.77→0.74, in-sample 0.60→0.35):
+  our 18 ETFs are dominated by correlated bond/credit and equity blocks, so it
+  *diluted* rather than added independent bets — unlike MOP's 58 futures across 4
+  asset classes. More tickers ≠ more diversification.
+- **(c) risk-scaling** was marginally positive and consistent (+~0.005 Sharpe) —
+  negligible.
+- Even the 0.775 artifact is **still below buy-and-hold SPY (0.778).**
+
+**Conclusion:** keep the simple long/flat equal-weight sleeve. None of these
+additions earns its complexity. The real lever remains dropping/threshold-gating
+the vol overlay (blended-no-overlay weekly ≈ 0.81), *validated on a second
+window* — not these. This is the curve-fitting trap (§0) caught in the act.
+
+---
+
 ## 2B. News / Social Sentiment — Evaluated, Deferred (mostly rejected)
 
 **Verdict: do NOT add sentiment as an alpha signal in v1. Defer one narrow use to Phase 3.**
