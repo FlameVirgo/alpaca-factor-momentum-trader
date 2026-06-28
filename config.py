@@ -39,7 +39,21 @@ class AlpacaCredentials:
 # Sleeve A: Time-Series Momentum on broad, liquid, cross-asset ETFs.
 # Cross-asset by design so the trend sleeve can be long bonds/gold when
 # equities are falling (the 2008-style crash hedge).
-TSMOM_UNIVERSE: List[str] = ["SPY", "QQQ", "IWM", "TLT", "GLD", "EFA"]
+# Original v1 cross-asset sleeve (kept for reference / one-line revert). Research
+# (PLAN §2F) found this 6-ETF set is the most *consistent* across both halves.
+TSMOM_UNIVERSE_CORE6: List[str] = ["SPY", "QQQ", "IWM", "TLT", "GLD", "EFA"]
+
+# Active TSMOM universe: the maximally-independent ETF set (|corr|<0.70, n=10),
+# selected on in-sample data by research/independent_universe.py. NOTE: its strong
+# out-of-sample Sharpe is partly a 2019-26 regime effect (in-sample is weaker) —
+# revert to TSMOM_UNIVERSE_CORE6 if you want the more consistent universe.
+TSMOM_UNIVERSE: List[str] = [
+    "QQQ",                     # US equity (sole equity representative)
+    "GLD", "USO", "DBA",       # commodities: gold, oil, agriculture
+    "LQD", "HYG", "SHY", "EMB",  # credit / short govt / EM bonds
+    "VNQ",                     # real estate
+    "UUP",                     # US dollar
+]
 
 # Broadened cross-asset universe (research lever "a"): ~18 liquid ETFs across
 # equities (US/intl/EM), the full bond curve, commodities, and real estate. More

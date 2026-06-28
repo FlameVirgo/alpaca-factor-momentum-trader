@@ -23,7 +23,7 @@ def latest_target_weights(
     params: StrategyParams,
     risk: RiskLimits,
     as_of: Optional[pd.Timestamp] = None,
-    apply_vol_overlay: bool = True,
+    apply_vol_overlay: bool = False,  # deployed strategy is the 50/50 blend, no overlay
 ) -> pd.Series:
     """
     Target weights for the most recent rebalance (default: last row of `prices`).

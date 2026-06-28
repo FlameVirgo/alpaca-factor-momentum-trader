@@ -135,12 +135,13 @@ def main() -> None:
     ap.add_argument("--rebalance", action="store_true", help="force a rebalance now")
     ap.add_argument("--monitor-only", action="store_true", help="kill-switch check only")
     ap.add_argument("--lookback-days", type=int, default=500, help="history window to pull")
-    ap.add_argument("--no-vol-overlay", action="store_true", help="disable vol overlay")
+    ap.add_argument("--vol-overlay", action="store_true",
+                    help="enable the vol overlay (off by default — it hurt OOS, PLAN §2D)")
     ap.add_argument("--frequency", default="weekly", choices=["weekly", "monthly"],
                     help="rebalance cadence (default weekly, per backtest §2D)")
     args = ap.parse_args()
     run(live=args.live, force_rebalance=args.rebalance, monitor_only=args.monitor_only,
-        lookback_days=args.lookback_days, apply_vol_overlay=not args.no_vol_overlay,
+        lookback_days=args.lookback_days, apply_vol_overlay=args.vol_overlay,
         freq=args.frequency)
 
 

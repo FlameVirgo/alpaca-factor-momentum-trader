@@ -37,7 +37,9 @@ def _bh_sixty_forty(prices: pd.DataFrame) -> pd.Series:
 
 def run(refresh: bool, oos_start: str, freq: str = "weekly") -> None:
     params, risk, costs = SETTINGS.params, SETTINGS.risk, SETTINGS.costs
-    symbols = sorted(set(TSMOM_UNIVERSE) | set(SECTOR_UNIVERSE) | {BENCHMARK, RF_SYMBOL})
+    # BENCHMARK (SPY) + TLT are needed for the buy&hold / 60-40 benchmarks even
+    # if they're not in the active TSMOM universe.
+    symbols = sorted(set(TSMOM_UNIVERSE) | set(SECTOR_UNIVERSE) | {BENCHMARK, RF_SYMBOL, "TLT"})
 
     print(f"Loading {len(symbols)} symbols (cached unless --refresh)...")
     prices = get_daily_closes(symbols, range_="15y", refresh=refresh)
@@ -112,24 +114,25 @@ def run(refresh: bool, oos_start: str, freq: str = "weekly") -> None:
     oos = lambda n: summary(
         series[n].loc[series[n].index >= oos_start], name=n, rf=rf
     )
-    rhdm = oos("RHDM (full: blend + vol overlay)")
+    # The DEPLOYED strategy is now the 50/50 blend with NO vol overlay.
+    deployed = oos("Blended (no vol overlay)")
     tsmom = oos("Sleeve A — TSMOM only")
     sector = oos("Sleeve B — Sector rotation only")
     spy = oos("Benchmark — Buy & Hold SPY")
     print("=" * 60)
-    print(f"FALSIFIABLE HYPOTHESES (out-of-sample {oos_start}+)")
+    print(f"FALSIFIABLE HYPOTHESES — DEPLOYED config (out-of-sample {oos_start}+)")
     print("=" * 60)
-    h1 = rhdm["sharpe"] > max(tsmom["sharpe"], sector["sharpe"])
-    h2 = abs(rhdm["max_drawdown"]) < abs(spy["max_drawdown"])
-    h3 = rhdm["sharpe"] > spy["sharpe"]
-    print(f"  H1  RHDM Sharpe > best single sleeve   : "
-          f"{rhdm['sharpe']:.2f} vs {max(tsmom['sharpe'], sector['sharpe']):.2f}"
+    h1 = deployed["sharpe"] > max(tsmom["sharpe"], sector["sharpe"])
+    h2 = abs(deployed["max_drawdown"]) < abs(spy["max_drawdown"])
+    h3 = deployed["sharpe"] > spy["sharpe"]
+    print(f"  H1  Deployed Sharpe > best single sleeve : "
+          f"{deployed['sharpe']:.2f} vs {max(tsmom['sharpe'], sector['sharpe']):.2f}"
           f"   {'PASS' if h1 else 'FAIL'}")
-    print(f"  H2  RHDM maxDD < SPY maxDD              : "
-          f"{rhdm['max_drawdown']:.1%} vs {spy['max_drawdown']:.1%}"
+    print(f"  H2  Deployed maxDD < SPY maxDD           : "
+          f"{deployed['max_drawdown']:.1%} vs {spy['max_drawdown']:.1%}"
           f"   {'PASS' if h2 else 'FAIL'}")
-    print(f"  H3  RHDM Sharpe > Buy&Hold SPY Sharpe   : "
-          f"{rhdm['sharpe']:.2f} vs {spy['sharpe']:.2f}"
+    print(f"  H3  Deployed Sharpe > Buy&Hold SPY       : "
+          f"{deployed['sharpe']:.2f} vs {spy['sharpe']:.2f}"
           f"   {'PASS' if h3 else 'FAIL'}")
     print()
 
