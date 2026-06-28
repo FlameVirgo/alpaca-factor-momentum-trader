@@ -26,6 +26,9 @@ from backtest.engine import run_backtest, buy_and_hold, month_end_dates
 from backtest.metrics import summary, format_summary
 
 
+RF_SYMBOL = "BIL"  # SPDR 1-3 month T-bill ETF: the tradeable cash proxy
+
+
 def _bh_sixty_forty(prices: pd.DataFrame) -> pd.Series:
     """Classic 60/40 SPY/TLT daily returns, monthly rebalanced (benchmark #2)."""
     rets = prices[["SPY", "TLT"]].pct_change().fillna(0.0)
@@ -34,12 +37,18 @@ def _bh_sixty_forty(prices: pd.DataFrame) -> pd.Series:
 
 def run(refresh: bool, oos_start: str) -> None:
     params, risk, costs = SETTINGS.params, SETTINGS.risk, SETTINGS.costs
-    symbols = sorted(set(TSMOM_UNIVERSE) | set(SECTOR_UNIVERSE) | {BENCHMARK})
+    symbols = sorted(set(TSMOM_UNIVERSE) | set(SECTOR_UNIVERSE) | {BENCHMARK, RF_SYMBOL})
 
     print(f"Loading {len(symbols)} symbols (cached unless --refresh)...")
     prices = get_daily_closes(symbols, range_="15y", refresh=refresh)
     print(f"  {prices.index[0].date()} → {prices.index[-1].date()}  "
-          f"({len(prices)} trading days)\n")
+          f"({len(prices)} trading days)")
+
+    # Real, time-varying risk-free: the daily total return of holding BIL. Cash
+    # in the strategies earns this, and Sharpe/Sortino measure excess over it.
+    rf = prices[RF_SYMBOL].pct_change().fillna(0.0)
+    rf_ann = (1.0 + rf).prod() ** (252.0 / len(rf)) - 1.0
+    print(f"  Risk-free proxy: {RF_SYMBOL}, ~{rf_ann:.2%}/yr avg over the sample\n")
 
     tsmom_prices = prices[TSMOM_UNIVERSE]
     sector_prices = prices[SECTOR_UNIVERSE]
@@ -52,17 +61,17 @@ def run(refresh: bool, oos_start: str) -> None:
         tsmom_prices, sector_prices, rebal, params, risk, apply_vol_overlay=False
     )
 
-    # Build the return series for each strategy + benchmarks.
+    # Build the return series for each strategy + benchmarks. Strategies route
+    # through run_backtest (execution lag + cash earns rf); benchmarks are fully
+    # invested so they have no cash leg.
     series: dict[str, pd.Series] = {
-        "RHDM (full: blend + vol overlay)": run_backtest(prices, weights["final"], costs).returns,
-        "Blended (no vol overlay)": run_backtest(prices, blended_only["final"], costs).returns,
-        "Sleeve A — TSMOM only": run_backtest(prices, weights["tsmom"], costs).returns,
-        "Sleeve B — Sector rotation only": run_backtest(prices, weights["xsec"], costs).returns,
+        "RHDM (full: blend + vol overlay)": run_backtest(prices, weights["final"], costs, rf_returns=rf).returns,
+        "Blended (no vol overlay)": run_backtest(prices, blended_only["final"], costs, rf_returns=rf).returns,
+        "Sleeve A — TSMOM only": run_backtest(prices, weights["tsmom"], costs, rf_returns=rf).returns,
+        "Sleeve B — Sector rotation only": run_backtest(prices, weights["xsec"], costs, rf_returns=rf).returns,
         "Benchmark — Buy & Hold SPY": buy_and_hold(prices, BENCHMARK),
         "Benchmark — 60/40 SPY/TLT": _bh_sixty_forty(prices),
     }
-
-    rf = 0.0  # set a risk-free rate here if desired
 
     def report(label: str, window: tuple[str, str] | None) -> None:
         print("=" * 60)
@@ -93,7 +102,7 @@ def run(refresh: bool, oos_start: str) -> None:
 
     # Hypothesis checks (PLAN.md §2A) on the out-of-sample window.
     oos = lambda n: summary(
-        series[n].loc[series[n].index >= oos_start], name=n
+        series[n].loc[series[n].index >= oos_start], name=n, rf=rf
     )
     rhdm = oos("RHDM (full: blend + vol overlay)")
     tsmom = oos("Sleeve A — TSMOM only")
