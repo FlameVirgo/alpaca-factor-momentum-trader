@@ -323,6 +323,29 @@ backtest. Keep 50/50.
 
 ---
 
+## 2H. Sharpe reliability — block bootstrap (1000 resamples)
+
+The backtest is deterministic, so re-running it 1000× gives the same 0.81.
+Reliability comes from resampling its realized out-of-sample returns 1000× with a
+moving-block bootstrap (block ≈ 21 days, preserving momentum autocorrelation) —
+[research/bootstrap_sharpe.py](research/bootstrap_sharpe.py).
+
+**Strategy OOS Sharpe** (point 0.807):
+- bootstrap mean **0.85**, std error **0.37**, **95% CI [0.16, 1.63]**
+- P(Sharpe > 0) = **99.5%**, P(Sharpe > 0.5) = **81%**
+
+**Strategy − SPY** (paired, same resampled blocks):
+- mean ΔSharpe **+0.05**, 95% CI **[−0.29, +0.43]**, **P(beats SPY) = 60%**
+
+**Read:** the risk-adjusted edge *over cash* is reliable — almost surely positive
+(99.5%) and probably > 0.5 (81%). But **"beats SPY" is barely better than a coin
+flip (60%)** and the ΔSharpe confidence interval straddles zero. The 0.81-vs-0.78
+headline is **within noise**, exactly as flagged. 7.5 years simply can't pin a
+Sharpe — its 95% CI spans 0.16–1.63. More data / a second window is required
+before the "beats SPY" claim can be trusted.
+
+---
+
 ## 2B. News / Social Sentiment — Evaluated, Deferred (mostly rejected)
 
 **Verdict: do NOT add sentiment as an alpha signal in v1. Defer one narrow use to Phase 3.**
