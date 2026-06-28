@@ -370,6 +370,31 @@ diversified trend/momentum book should be.
 
 ---
 
+## 2J. Momentum lookback sweep — 12mo already best; none reliably beats SPY
+
+Swept the lookback {1,3,6,9,12}mo with the consistency guard + 1000x bootstrap
+([research/lookback_sweep.py](research/lookback_sweep.py)), deployed blend (no
+overlay, weekly), OOS 2019+:
+
+| Lookback | OOS Sharpe | In-sample Sharpe | P(beats SPY) |
+|---|---|---|---|
+| 1 mo | 0.707 | 0.355 | 40% |
+| 3 mo | 0.351 | 0.508 | 2% |
+| 6 mo | 0.686 | 0.642 | 37% |
+| 9 mo | 0.741 | 0.537 | 47% |
+| **12 mo (deployed)** | **0.807** | 0.554 | **60%** |
+
+The deployed **12-month is already the best** on both OOS Sharpe and P(beats SPY)
+— the lookback lever finds nothing better. Three honesty notes: (1) the "best
+lookback" *flips* between 9mo and 12mo depending on the skip convention, i.e. it's
+within noise; (2) 6-month is the most *consistent* across halves (IS 0.64 ≈ OOS
+0.69) but only 37% to beat SPY; (3) even the best (12mo, 60%) is a coin-flip on
+the favorable 2019–26 window and drops to ~25–30% on longer windows (§2I). Short
+lookbacks (1–3mo) are reversal-contaminated and weak. **Keep 12-month; no lookback
+reliably beats SPY.**
+
+---
+
 ## 2B. News / Social Sentiment — Evaluated, Deferred (mostly rejected)
 
 **Verdict: do NOT add sentiment as an alpha signal in v1. Defer one narrow use to Phase 3.**
