@@ -346,6 +346,30 @@ before the "beats SPY" claim can be trusted.
 
 ---
 
+## 2I. Long-window reliability — the "beats SPY" edge is crisis insurance
+
+Extended as far back as the data honestly allows (core-6 universe + ^IRX
+risk-free; the ETFs can't reach 2000 — gold/bond/credit ETFs didn't exist) via
+[research/long_window.py](research/long_window.py). The headline reverses on a
+longer window:
+
+| Window | Strat Sharpe | SPY Sharpe | ΔSharpe 95% CI | **P(beats SPY)** |
+|---|---|---|---|---|
+| 2005–2026 (incl. 2008) | 0.61 | 0.55 | [−0.20, +0.30] | **63%** |
+| **2010–2026 (excl. 2008)** | **0.72** | **0.77** | [−0.24, +0.14] | **30%** |
+| 2019–2026 (orig OOS) | 0.81 | 0.78 | [−0.29, +0.43] | 60% |
+
+The strategy reliably earns a positive risk-adjusted return (P(Sharpe>0) ≈ 100%;
+CI tightens with more data: [0.30, 1.18] over 16y vs [0.16, 1.63] over 7.5y) and
+consistently has **shallower drawdowns** (2008: −16% vs SPY −55%; overall −23%
+vs −34/55%). **But "beats SPY on Sharpe" is driven by crises:** include 2008 and
+it edges SPY (63%); exclude 2008 and **SPY wins (P = 30%)**. Over a full ~16–21yr
+window SPY wins on Sharpe *and* return; the strategy wins on **drawdown**. The
+edge is **crash insurance, not normal-regime alpha** — which is exactly what a
+diversified trend/momentum book should be.
+
+---
+
 ## 2B. News / Social Sentiment — Evaluated, Deferred (mostly rejected)
 
 **Verdict: do NOT add sentiment as an alpha signal in v1. Defer one narrow use to Phase 3.**
