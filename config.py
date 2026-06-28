@@ -41,6 +41,19 @@ class AlpacaCredentials:
 # equities are falling (the 2008-style crash hedge).
 TSMOM_UNIVERSE: List[str] = ["SPY", "QQQ", "IWM", "TLT", "GLD", "EFA"]
 
+# Broadened cross-asset universe (research lever "a"): ~18 liquid ETFs across
+# equities (US/intl/EM), the full bond curve, commodities, and real estate. More
+# low-correlation instruments is the main driver of time-series-momentum Sharpe
+# (Moskowitz/Ooi/Pedersen used 58 futures across 4 asset classes). All have
+# history back to ≤2010 so the 2011-start backtest is clean.
+TSMOM_UNIVERSE_BROAD: List[str] = [
+    "SPY", "QQQ", "IWM",                 # US equity
+    "EFA", "EEM", "VGK", "EWJ",          # intl / EM / Europe / Japan equity
+    "TLT", "IEF", "SHY", "LQD", "HYG", "TIP", "EMB",  # bonds: govt curve, IG, HY, TIPS, EM
+    "GLD", "SLV", "DBC",                 # commodities: gold, silver, broad
+    "VNQ",                               # real estate
+]
+
 # Sleeve B: Cross-Sectional (sector rotation) — the 11 SPDR sectors.
 SECTOR_UNIVERSE: List[str] = [
     "XLK",  # technology
@@ -80,6 +93,10 @@ class StrategyParams:
     weight_tsmom: float = 0.5
     weight_xsec: float = 0.5
 
+    # ── Research levers (defaults reproduce the v1 long/flat equal-weight sleeve) ──
+    tsmom_allow_short: bool = False     # (b) short negative-momentum assets vs. go to cash
+    tsmom_risk_scaled: bool = False     # (c) inverse-vol (equal-risk) sizing vs. equal weight
+
     trading_days_per_year: int = 252
 
 
@@ -98,6 +115,7 @@ class CostModel:
     commission_per_share: float = 0.0
     slippage_bps: float = 2.0           # 2 bps each side on liquid ETFs (conservative)
     spread_bps: float = 1.0             # half-spread cost assumption
+    short_borrow_bps_annual: float = 100.0  # ~1%/yr borrow on short ETF notional
 
 
 @dataclass(frozen=True)

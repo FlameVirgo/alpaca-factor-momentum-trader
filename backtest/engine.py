@@ -22,6 +22,8 @@ import pandas as pd
 
 from config import CostModel
 
+TRADING_DAYS = 252
+
 
 @dataclass
 class BacktestResult:
@@ -87,13 +89,20 @@ def run_backtest(
         turn = float((target - prev_w).abs().sum())
         cost = turn * cost_rate
 
-        # Day's gross return = invested legs + the idle cash earning the
-        # risk-free rate. Cash weight is whatever the target leaves unallocated.
-        cash_w = max(0.0, 1.0 - float(target.sum()))
-        day_ret = float((target * daily_returns.loc[date]).sum()) + cash_w * float(rf.loc[date])
+        # Day's gross return = invested legs + idle cash earning the risk-free
+        # rate. cash_w = 1 − net invested (for long-only ≤1 → cash; for a
+        # long/short book ≈1 of collateral earns rf while the legs are the bets).
+        cash_w = 1.0 - float(target.sum())
+        # Short borrow cost on gross short notional (research lever "b").
+        short_notional = float(target[target < 0].abs().sum())
+        borrow = short_notional * costs.short_borrow_bps_annual / 10_000.0 / TRADING_DAYS
+        day_ret = (
+            float((target * daily_returns.loc[date]).sum())
+            + cash_w * float(rf.loc[date])
+        )
 
-        gross.append(day_ret)
-        net.append(day_ret - cost)
+        gross.append(day_ret - borrow)
+        net.append(day_ret - borrow - cost)
         turnover_series.append(turn)
         held_weights.append(target)
 

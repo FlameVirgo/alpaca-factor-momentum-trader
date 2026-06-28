@@ -13,6 +13,7 @@ cash buffer that appears automatically when fewer assets are trending.
 """
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 
 from config import StrategyParams
@@ -41,13 +42,35 @@ def tsmom_weights(prices: pd.DataFrame, params: StrategyParams) -> pd.DataFrame:
     Target weights for the absolute-momentum sleeve, evaluated on every row of
     `prices` (caller slices to rebalance dates).
 
-    Each asset receives weight 1/N if its absolute momentum is positive, else 0,
-    where N is the universe size. The sleeve is therefore at most 100% invested
-    and de-risks to cash as assets roll over.
+    Default (v1): each asset gets +1/N if its absolute momentum is positive,
+    else 0 — long/flat, de-risking to cash as assets roll over.
+
+    Research levers (config.StrategyParams):
+      - tsmom_allow_short: signal becomes sign(momentum) → short downtrending
+        assets (+1/N / −1/N / 0) instead of holding cash.
+      - tsmom_risk_scaled: tilt each slice by inverse trailing volatility
+        (equal-risk sizing, borrowed from the Stat_Arb_Tech sibling), keeping
+        the per-asset 1/N scale on average so the cash de-risk property survives.
     """
     mom = momentum_returns(
         prices, params.tsmom_lookback_months, params.tsmom_skip_months
     )
     n = prices.shape[1]
-    signal = (mom > 0.0).astype(float)
-    return signal / n
+
+    if params.tsmom_allow_short:
+        signal = np.sign(mom)            # +1 / −1 / 0
+    else:
+        signal = (mom > 0.0).astype(float)  # +1 / 0
+    signal = signal.fillna(0.0)
+
+    if not params.tsmom_risk_scaled:
+        return signal / n
+
+    # Inverse-vol tilt, normalized so the cross-sectional mean multiplier is 1
+    # (preserves the ~1/N per-asset scale and the cash buffer).
+    vol = prices.pct_change().rolling(params.vol_lookback_days).std() * np.sqrt(
+        params.trading_days_per_year
+    )
+    inv_vol = 1.0 / vol.replace(0.0, np.nan)
+    tilt = inv_vol.div(inv_vol.mean(axis=1), axis=0).fillna(1.0)
+    return signal * tilt / n

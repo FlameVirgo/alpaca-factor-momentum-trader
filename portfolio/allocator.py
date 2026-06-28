@@ -61,8 +61,9 @@ def build_target_weights(
     else:
         final = blended.copy()
 
-    # Risk cap: never more than max_position_weight in a single ETF.
-    final = final.clip(upper=risk.max_position_weight)
+    # Risk cap: bound any single ETF to ±max_position_weight (the lower bound
+    # only binds when shorting is enabled; for long-only it's a no-op).
+    final = final.clip(lower=-risk.max_position_weight, upper=risk.max_position_weight)
 
     return {
         "tsmom": wa.reindex(columns=blended.columns, fill_value=0.0),
