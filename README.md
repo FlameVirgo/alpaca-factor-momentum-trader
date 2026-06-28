@@ -5,10 +5,6 @@ A research-grounded, **paper-trading** algorithmic trading system on
 low-turnover factor strategies with a conservative volatility-targeting overlay,
 validated out-of-sample against buy-and-hold SPY *after realistic costs*.
 
-> ⚠️ **Educational / research project. Paper trading only.** Nothing here is
-> financial advice. Trading involves risk of loss. See [PLAN.md](PLAN.md) for the
-> full strategy rationale, academic sources, and honest caveats.
-
 ## The strategy — Regime-Hedged Dual Momentum (RHDM)
 
 The components are *established* academic edges; the contribution here is the **synthesis**.
@@ -55,13 +51,16 @@ Full implementation-precise spec in [PLAN.md §2C](PLAN.md). Run it yourself:
 python run_backtest.py            # 15y backtest, OOS split, full summary table
 ```
 
-### First backtest result (15y real data, out-of-sample, after costs)
+### Backtest result (15y real data, OOS, after costs, look-ahead-free)
 
-The backtester ran (2011→2026, OOS from 2019) and **honestly flags a problem**:
-the full RHDM with the vol overlay scores **Sharpe 0.56 OOS vs 0.91 for
-buy-and-hold SPY** — it does *not* beat SPY risk-adjusted (H1/H3 fail). It *does*
-cut max drawdown hard (**−21% vs −34%**, H2 passes). The vol overlay is the drag
-(blended-without-overlay = Sharpe 0.84). Per the success criteria this means
+The backtester runs with honesty controls baked in — a **1-day execution lag**
+(no acting on the close you used to decide), **idle cash earning the real T-bill
+rate** (BIL), and **Sharpe measured as excess over that risk-free**. It honestly
+flags a problem: the full RHDM with the vol overlay scores **Sharpe 0.57 OOS vs
+0.78 for buy-and-hold SPY** — it does *not* beat SPY risk-adjusted (H1/H3 fail),
+and is in fact the weakest line tested. It *does* cut max drawdown hard
+(**−22% vs −34%**, H2 passes). The vol overlay is the drag
+(blended-without-overlay = Sharpe 0.75). Per the success criteria this means
 **do not deploy as-is** — simplify the overlay and re-test first. See
 [PLAN.md §2D](PLAN.md) for the full table and the path forward. This is the
 backtest-first discipline working exactly as intended: evidence before execution.
