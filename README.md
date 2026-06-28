@@ -77,7 +77,27 @@ backtest-first discipline working exactly as intended: evidence before execution
 ```bash
 pip install -r requirements.txt
 cp .env.example .env          # then paste your Alpaca PAPER keys into .env
+
+python run_backtest.py        # research: 15y backtest + OOS summary (no keys needed)
+python -m pytest tests/ -q    # offline unit tests (reconciliation + kill-switch)
 ```
+
+### Live (paper) deployment — Phase 2 plumbing
+
+`run_live.py` is the daily scheduler entrypoint: it checks the drawdown
+kill-switch and, on the first trading day of each month, recomputes RHDM targets
+(identical to the backtest) and reconciles the paper book. **Dry-run by default.**
+
+```bash
+python run_live.py                # monitor + print the order plan, send nothing
+python run_live.py --rebalance    # force-compute today's plan (still dry-run)
+python run_live.py --live         # actually submit to the PAPER account
+```
+
+> Deployment is intentionally **gated**: per the backtest (§2D) RHDM isn't yet
+> validated, so `--live` is off by default. The wiring (reconciliation, notional
+> orders, persisted high-water-mark kill-switch, journaling to `logs/`) is built
+> and unit-tested; simplify the vol overlay and re-validate before going `--live`.
 
 ## Roadmap
 

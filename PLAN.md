@@ -300,11 +300,16 @@ Alpaca_Trading/
 │   ├── engine.py           # vectorized backtester w/ realistic turnover costs
 │   └── metrics.py          # Sharpe, Sortino, max DD, Calmar, turnover
 ├── portfolio/
-│   └── allocator.py        # combine sleeves + overlay + caps → target weights
+│   ├── allocator.py        # combine sleeves + overlay + caps → target weights
+│   └── target.py           # live: current month-end target snapshot (reuses allocator)
 ├── run_backtest.py         # ← research driver: pull data, backtest, print summary
 ├── execution/
-│   └── alpaca_executor.py  # reconcile current vs target, place orders (Phase 2)
-└── run_live.py             # scheduled daily/monthly job (Phase 2)
+│   ├── alpaca_executor.py  # reconcile current vs target, place notional orders
+│   ├── risk_monitor.py     # persisted high-water-mark drawdown kill-switch
+│   └── journal.py          # durable signal/order/equity logging → logs/
+├── tests/
+│   └── test_execution.py   # offline tests: reconciliation + kill-switch
+└── run_live.py             # scheduled daily/monthly orchestrator (Phase 2)
 ```
 
 ---
@@ -322,12 +327,21 @@ Alpaca_Trading/
   In-sample-only success = curve-fit garbage → kill it.
 - Every sleeve and the combined portfolio must beat **buy-and-hold SPY** risk-adjusted, after costs.
 
-### Phase 2 — Paper deployment (Week 3+)
-- Wire validated portfolio to the **paper endpoint**.
-- Scheduled job: check signals → compute target weights → reconcile positions monthly
-  (daily vol-monitoring check).
-- Full logging: every signal, order, fill, daily equity snapshot.
-- Run weeks-to-months; compare **live paper vs. backtest**. Divergence = bug or overfit, caught with fake money.
+### Phase 2 — Paper deployment (Week 3+) — *plumbing built, deployment gated*
+- ✅ **Built:** `run_live.py` scheduler entrypoint — reads paper equity, runs the
+  drawdown kill-switch, and on the first trading day of each month recomputes
+  RHDM targets ([portfolio/target.py](portfolio/target.py), identical to the
+  backtest pipeline) and reconciles the book ([execution/alpaca_executor.py](execution/alpaca_executor.py))
+  with notional orders. Full journaling of signals/orders/equity to `logs/`.
+- ✅ **Safety built in:** dry-run by default (`--live` required to submit),
+  paper-endpoint assertion, persisted high-water-mark kill-switch → flatten to
+  cash on breach, sub-threshold churn suppression, offline unit tests.
+- ⏳ **Gated:** actual `--live` deployment is intentionally held until RHDM
+  clears §8 criteria out-of-sample — current backtest (§2D) does **not** (the vol
+  overlay must be simplified first). The wiring is ready; the strategy isn't.
+- **Next:** once validated, schedule `python run_live.py --live` daily (cron /
+  GitHub Action), run weeks-to-months, compare **live paper vs. backtest**.
+  Divergence = bug or overfit, caught with fake money.
 
 ### Phase 3 — Iterate
 - Optionally add pairs-trading sleeve or tail hedge once core is proven.
