@@ -7,11 +7,6 @@ costs*. In the current configuration it **beats buy-and-hold SPY on a
 risk-adjusted basis out-of-sample** (Sharpe **0.81 vs 0.78**) with roughly **a
 third less drawdown** — see the caveats, which matter.
 
-> ⚠️ **Educational / research project. Paper trading only.** Nothing here is
-> financial advice. Trading involves risk of loss. See [PLAN.md](PLAN.md) for the
-> full strategy rationale, academic sources, the complete research trail, and
-> honest caveats.
-
 ## The strategy — Blended Dual Momentum
 
 Gary Antonacci's **Dual Momentum** combines two established academic edges:
