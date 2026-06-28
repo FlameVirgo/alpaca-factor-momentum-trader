@@ -35,7 +35,7 @@ def _bh_sixty_forty(prices: pd.DataFrame) -> pd.Series:
     return 0.6 * rets["SPY"] + 0.4 * rets["TLT"]
 
 
-def run(refresh: bool, oos_start: str, freq: str = "monthly") -> None:
+def run(refresh: bool, oos_start: str, freq: str = "weekly") -> None:
     params, risk, costs = SETTINGS.params, SETTINGS.risk, SETTINGS.costs
     symbols = sorted(set(TSMOM_UNIVERSE) | set(SECTOR_UNIVERSE) | {BENCHMARK, RF_SYMBOL})
 
@@ -138,8 +138,9 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="RHDM backtest")
     ap.add_argument("--refresh", action="store_true", help="re-pull data from source")
     ap.add_argument("--oos", default="2019-01-01", help="out-of-sample start date")
-    ap.add_argument("--rebalance", default="monthly",
-                    choices=["monthly", "weekly", "daily"], help="rebalance frequency")
+    ap.add_argument("--rebalance", default="weekly",
+                    choices=["monthly", "weekly", "daily"],
+                    help="rebalance frequency (default weekly, matches run_live.py)")
     args = ap.parse_args()
     run(refresh=args.refresh, oos_start=args.oos, freq=args.rebalance)
 

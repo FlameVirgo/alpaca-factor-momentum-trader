@@ -53,17 +53,18 @@ python run_backtest.py            # 15y backtest, OOS split, full summary table
 
 ### Backtest result (15y real data, OOS, after costs, look-ahead-free)
 
-The backtester runs with honesty controls baked in — a **1-day execution lag**
-(no acting on the close you used to decide), **idle cash earning the real T-bill
-rate** (BIL), and **Sharpe measured as excess over that risk-free**. It honestly
-flags a problem: the full RHDM with the vol overlay scores **Sharpe 0.57 OOS vs
-0.78 for buy-and-hold SPY** — it does *not* beat SPY risk-adjusted (H1/H3 fail),
-and is in fact the weakest line tested. It *does* cut max drawdown hard
-(**−22% vs −34%**, H2 passes). The vol overlay is the drag
-(blended-without-overlay = Sharpe 0.75). Per the success criteria this means
-**do not deploy as-is** — simplify the overlay and re-test first. See
-[PLAN.md §2D](PLAN.md) for the full table and the path forward. This is the
-backtest-first discipline working exactly as intended: evidence before execution.
+The backtester defaults to **weekly** rebalancing (matching `run_live.py`) with
+honesty controls baked in — a **1-day execution lag** (no acting on the close you
+used to decide), **idle cash earning the real T-bill rate** (BIL), and **Sharpe
+measured as excess over that risk-free**. It honestly flags a problem: the full
+RHDM with the vol overlay scores **Sharpe 0.70 OOS vs 0.78 for buy-and-hold SPY**
+— weekly helped (it was 0.57 monthly) but it still does *not* beat SPY
+risk-adjusted (H1/H3 fail). It *does* cut max drawdown hard (**−16% vs −34%**, H2
+passes). The vol overlay is still the drag: the **blended sleeve without the
+overlay** scores **Sharpe 0.81** weekly — beating SPY, the best sleeve, and RHDM.
+Per the success criteria this means **do not deploy the full RHDM as-is** —
+drop/threshold-gate the overlay and re-validate. See [PLAN.md §2D](PLAN.md) for
+the full table. This is the backtest-first discipline working as intended.
 
 ## Security
 
