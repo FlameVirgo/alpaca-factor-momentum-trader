@@ -14,6 +14,7 @@ strategies from the ones that die after fees (see PLAN.md).
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 import numpy as np
@@ -137,11 +138,22 @@ def week_end_dates(index: pd.DatetimeIndex) -> pd.DatetimeIndex:
 
 
 def rebalance_dates(index: pd.DatetimeIndex, freq: str) -> pd.DatetimeIndex:
-    """Rebalance calendar for the chosen frequency: monthly | weekly | daily."""
+    """
+    Rebalance calendar for the chosen frequency.
+
+    Accepts: monthly | weekly | daily, or an every-N-trading-days spec like
+    "3d" (rebalance every 3rd trading day).
+    """
     if freq == "monthly":
         return month_end_dates(index)
     if freq == "weekly":
         return week_end_dates(index)
     if freq == "daily":
         return index
+    m = re.fullmatch(r"(\d+)d", freq)
+    if m:
+        n = int(m.group(1))
+        if n < 1:
+            raise ValueError(f"N-day frequency must be >= 1: {freq!r}")
+        return index[::n]
     raise ValueError(f"unknown rebalance freq: {freq!r}")

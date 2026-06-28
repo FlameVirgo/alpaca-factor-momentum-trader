@@ -138,9 +138,9 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="RHDM backtest")
     ap.add_argument("--refresh", action="store_true", help="re-pull data from source")
     ap.add_argument("--oos", default="2019-01-01", help="out-of-sample start date")
-    ap.add_argument("--rebalance", default="weekly",
-                    choices=["monthly", "weekly", "daily"],
-                    help="rebalance frequency (default weekly, matches run_live.py)")
+    ap.add_argument("--rebalance", default="weekly", metavar="FREQ",
+                    help="rebalance frequency: monthly|weekly|daily or N-day (e.g. 3d); "
+                         "default weekly, matches run_live.py")
     args = ap.parse_args()
     run(refresh=args.refresh, oos_start=args.oos, freq=args.rebalance)
 
