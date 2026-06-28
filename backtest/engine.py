@@ -127,3 +127,21 @@ def month_end_dates(index: pd.DatetimeIndex) -> pd.DatetimeIndex:
     """Return the last available trading date of each month in `index`."""
     s = pd.Series(index, index=index)
     return pd.DatetimeIndex(s.groupby([index.year, index.month]).last().values)
+
+
+def week_end_dates(index: pd.DatetimeIndex) -> pd.DatetimeIndex:
+    """Return the last available trading date of each ISO week in `index`."""
+    s = pd.Series(index, index=index)
+    iso = index.isocalendar()
+    return pd.DatetimeIndex(s.groupby([iso.year.values, iso.week.values]).last().values)
+
+
+def rebalance_dates(index: pd.DatetimeIndex, freq: str) -> pd.DatetimeIndex:
+    """Rebalance calendar for the chosen frequency: monthly | weekly | daily."""
+    if freq == "monthly":
+        return month_end_dates(index)
+    if freq == "weekly":
+        return week_end_dates(index)
+    if freq == "daily":
+        return index
+    raise ValueError(f"unknown rebalance freq: {freq!r}")

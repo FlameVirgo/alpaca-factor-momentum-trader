@@ -22,7 +22,7 @@ import pandas as pd
 from config import SETTINGS, TSMOM_UNIVERSE, SECTOR_UNIVERSE, BENCHMARK
 from data.market_data import get_daily_closes
 from portfolio.allocator import build_target_weights
-from backtest.engine import run_backtest, buy_and_hold, month_end_dates
+from backtest.engine import run_backtest, buy_and_hold, rebalance_dates
 from backtest.metrics import summary, format_summary
 
 
@@ -35,7 +35,7 @@ def _bh_sixty_forty(prices: pd.DataFrame) -> pd.Series:
     return 0.6 * rets["SPY"] + 0.4 * rets["TLT"]
 
 
-def run(refresh: bool, oos_start: str) -> None:
+def run(refresh: bool, oos_start: str, freq: str = "monthly") -> None:
     params, risk, costs = SETTINGS.params, SETTINGS.risk, SETTINGS.costs
     symbols = sorted(set(TSMOM_UNIVERSE) | set(SECTOR_UNIVERSE) | {BENCHMARK, RF_SYMBOL})
 
@@ -43,6 +43,7 @@ def run(refresh: bool, oos_start: str) -> None:
     prices = get_daily_closes(symbols, range_="15y", refresh=refresh)
     print(f"  {prices.index[0].date()} → {prices.index[-1].date()}  "
           f"({len(prices)} trading days)")
+    print(f"  Rebalance frequency: {freq}")
 
     # Real, time-varying risk-free: the daily total return of holding BIL. Cash
     # in the strategies earns this, and Sharpe/Sortino measure excess over it.
@@ -52,7 +53,7 @@ def run(refresh: bool, oos_start: str) -> None:
 
     tsmom_prices = prices[TSMOM_UNIVERSE]
     sector_prices = prices[SECTOR_UNIVERSE]
-    rebal = month_end_dates(prices.index)
+    rebal = rebalance_dates(prices.index, freq)
 
     weights = build_target_weights(
         tsmom_prices, sector_prices, rebal, params, risk, apply_vol_overlay=True
@@ -61,17 +62,24 @@ def run(refresh: bool, oos_start: str) -> None:
         tsmom_prices, sector_prices, rebal, params, risk, apply_vol_overlay=False
     )
 
-    # Build the return series for each strategy + benchmarks. Strategies route
-    # through run_backtest (execution lag + cash earns rf); benchmarks are fully
-    # invested so they have no cash leg.
-    series: dict[str, pd.Series] = {
-        "RHDM (full: blend + vol overlay)": run_backtest(prices, weights["final"], costs, rf_returns=rf).returns,
-        "Blended (no vol overlay)": run_backtest(prices, blended_only["final"], costs, rf_returns=rf).returns,
-        "Sleeve A — TSMOM only": run_backtest(prices, weights["tsmom"], costs, rf_returns=rf).returns,
-        "Sleeve B — Sector rotation only": run_backtest(prices, weights["xsec"], costs, rf_returns=rf).returns,
-        "Benchmark — Buy & Hold SPY": buy_and_hold(prices, BENCHMARK),
-        "Benchmark — 60/40 SPY/TLT": _bh_sixty_forty(prices),
+    # Run the strategies through the engine (execution lag + cash earns rf);
+    # keep the full results so we can report turnover (the cost story).
+    results = {
+        "RHDM (full: blend + vol overlay)": run_backtest(prices, weights["final"], costs, rf_returns=rf),
+        "Blended (no vol overlay)": run_backtest(prices, blended_only["final"], costs, rf_returns=rf),
+        "Sleeve A — TSMOM only": run_backtest(prices, weights["tsmom"], costs, rf_returns=rf),
+        "Sleeve B — Sector rotation only": run_backtest(prices, weights["xsec"], costs, rf_returns=rf),
     }
+    years = len(prices) / 252.0
+    print("Annualized one-way turnover (drives cost; rises with frequency):")
+    for name, r in results.items():
+        print(f"  {name:34} {r.turnover.sum() / years:6.1f}x/yr")
+    print()
+
+    # Benchmarks are fully invested → no cash leg, computed directly.
+    series: dict[str, pd.Series] = {name: r.returns for name, r in results.items()}
+    series["Benchmark — Buy & Hold SPY"] = buy_and_hold(prices, BENCHMARK)
+    series["Benchmark — 60/40 SPY/TLT"] = _bh_sixty_forty(prices)
 
     def report(label: str, window: tuple[str, str] | None) -> None:
         print("=" * 60)
@@ -130,8 +138,10 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="RHDM backtest")
     ap.add_argument("--refresh", action="store_true", help="re-pull data from source")
     ap.add_argument("--oos", default="2019-01-01", help="out-of-sample start date")
+    ap.add_argument("--rebalance", default="monthly",
+                    choices=["monthly", "weekly", "daily"], help="rebalance frequency")
     args = ap.parse_args()
-    run(refresh=args.refresh, oos_start=args.oos)
+    run(refresh=args.refresh, oos_start=args.oos, freq=args.rebalance)
 
 
 if __name__ == "__main__":
