@@ -303,6 +303,26 @@ on this data it added regime-dependence, not robust Sharpe. Keep the original
 
 ---
 
+## 2G. Sleeve blend weight — 50/50 is the overfitting-safe choice
+
+Swept the TSMOM/sector blend from 0/100 to 100/0 (weekly, no overlay, after
+costs) via [research/sleeve_weights.py](research/sleeve_weights.py):
+
+- **Out-of-sample** Sharpe *rises* with a TSMOM tilt — peaking **0.858 at 80%
+  TSMOM** (and drawdown shrinks too).
+- **In-sample** Sharpe does the **exact opposite** — highest (**0.608**) at
+  **0% TSMOM** (pure sector) and falling monotonically to 0.226 at 100% TSMOM.
+- So the OOS-best tilt (80% TSMOM) and the in-sample-best tilt (0% TSMOM) point
+  in **opposite directions.**
+
+When the two halves disagree on the *direction* of the tilt, any move away from
+50/50 is a bet on which regime repeats — i.e. overfitting. **50/50 is the only
+weight that doesn't require forecasting the regime**, and the blend is more
+consistent in-sample (0.554) than the TSMOM-heavy tilts that maximize the OOS
+backtest. Keep 50/50.
+
+---
+
 ## 2B. News / Social Sentiment — Evaluated, Deferred (mostly rejected)
 
 **Verdict: do NOT add sentiment as an alpha signal in v1. Defer one narrow use to Phase 3.**
