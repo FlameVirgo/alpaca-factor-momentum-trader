@@ -395,6 +395,37 @@ reliably beats SPY.**
 
 ---
 
+## 2K. Equity beta / trend-timing — closes the gap, still doesn't beat SPY reliably
+
+Tested adding equity beta + a market-timing alpha ([research/equity_beta.py](research/equity_beta.py)),
+each bootstrapped vs SPY. OOS 2019–2026 (SPY Sharpe 0.778):
+
+| Variant | OOS Sh | IS Sh | CAGR | maxDD | P(beats SPY) |
+|---|---|---|---|---|---|
+| Deployed blend | 0.807 | 0.554 | 12.0% | −21.7% | 60% |
+| Trend-timed equity (SPY/TLT) | 0.597 | 1.010 | 12.4% | −28.3% | 24% |
+| **Core-sat 50% SPY + 50% blend** | **0.815** | 0.733 | 14.7% | −27.9% | **71%** |
+| 3-sleeve (TSMOM+sector+trend-eq) | 0.812 | 0.836 | 12.4% | −20.6% | 65% |
+
+The **core-satellite and 3-sleeve are the best results in the whole study**: they
+add equity upside, the in-sample Sharpe rises so the consistency guard now passes
+(IS ≈ OOS), and P(beats SPY) hits 65–71% on 2019–26. **Trend-timed equity alone
+fails OOS** (great in-sample 1.01, collapses to 0.60 — 2020's fast crash and
+2022's bonds-don't-hedge broke the classic timing rule; textbook anomaly decay).
+
+**But the long-window validation (2012–2026) deflates it:** core-satellite
+P(beats SPY) = **40%** — far better than the pure blend's 24%, but still < 50%
+(SPY 0.825 vs core-sat 0.813). SPY's 2012–26 Sharpe (0.83) is exceptionally high
+(historic bull + low rates); adding equity beta makes the book *more like SPY*
+without durably exceeding it.
+
+**Conclusion:** equity beta is the right direction — it closes most of the gap
+and is the most consistent variant — but no version **reliably** beats SPY over a
+long window. Honest characterization: a SPY-like book with somewhat lower
+drawdown, not a dependable index-beater.
+
+---
+
 ## 2B. News / Social Sentiment — Evaluated, Deferred (mostly rejected)
 
 **Verdict: do NOT add sentiment as an alpha signal in v1. Defer one narrow use to Phase 3.**

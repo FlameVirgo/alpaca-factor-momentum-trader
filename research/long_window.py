@@ -100,8 +100,10 @@ def main() -> None:
         print(f"  {lbl:24} Sharpe {sharpe(r, rf=rf_l):>6.3f}   "
               f"CAGR {annual_return(r):>6.1%}   maxDD {max_drawdown(r):>6.1%}")
 
+    coresat = 0.5 * spy_l + 0.5 * strat   # core-satellite: 50% SPY + 50% blend
     print(f"Deployed blend (core-6, no overlay, weekly) vs SPY, {live[0].date()}→{live[-1].date()}:")
     block("STRATEGY (full window)", strat)
+    block("CORE-SAT 50% SPY+blend", coresat)
     block("Buy & Hold SPY", spy_l)
     print("  per-regime strategy Sharpe:")
     for lbl, a, b in [("2008 crisis 07-09", "2007-01-01", "2009-12-31"),
@@ -113,23 +115,27 @@ def main() -> None:
 
     # ── Bootstrap the full long return series ────────────────────────────────
     sx = strat.to_numpy() - rf_l.to_numpy()
+    csx = coresat.to_numpy() - rf_l.to_numpy()
     spx = spy_l.reindex(strat.index).to_numpy() - rf_l.to_numpy()
     n = len(sx)
     rng = np.random.default_rng(SEED)
     nb = int(np.ceil(n / BLOCK))
-    s_sh = np.empty(N_BOOT); d_sh = np.empty(N_BOOT)
+    s_sh = np.empty(N_BOOT); d_sh = np.empty(N_BOOT); cs_beat = 0
     for i in range(N_BOOT):
         idx = (rng.integers(0, n - BLOCK + 1, nb)[:, None] + np.arange(BLOCK)).ravel()[:n]
         s_sh[i] = ann_sharpe(sx[idx])
-        d_sh[i] = s_sh[i] - ann_sharpe(spx[idx])
+        spy_i = ann_sharpe(spx[idx])
+        d_sh[i] = s_sh[i] - spy_i
+        cs_beat += ann_sharpe(csx[idx]) > spy_i
 
     p = lambda a, q: float(np.percentile(a, q))
     print(f"\nBlock bootstrap ({N_BOOT}x, block={BLOCK}d) on the {n/TD:.1f}-yr series:")
     print(f"  Strategy Sharpe: mean {s_sh.mean():.3f}  std-err {s_sh.std(ddof=1):.3f}  "
           f"95% CI [{p(s_sh,2.5):.3f}, {p(s_sh,97.5):.3f}]")
     print(f"  P(Sharpe>0)={ (s_sh>0).mean():.1%}  P(>0.5)={ (s_sh>0.5).mean():.1%}")
-    print(f"  Strategy − SPY: mean Δ {d_sh.mean():.3f}  95% CI "
+    print(f"  Strategy − SPY:  mean Δ {d_sh.mean():.3f}  95% CI "
           f"[{p(d_sh,2.5):.3f}, {p(d_sh,97.5):.3f}]  P(beats SPY)={ (d_sh>0).mean():.1%}")
+    print(f"  CORE-SAT − SPY:  P(beats SPY)={ cs_beat/N_BOOT:.1%}")
 
 
 if __name__ == "__main__":
