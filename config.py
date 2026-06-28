@@ -85,6 +85,14 @@ SECTOR_UNIVERSE: List[str] = [
 
 BENCHMARK: str = "SPY"
 
+# ─── Deployed strategy: core-satellite ───────────────────────────────────
+# The deployed algorithm is 50% always-on equity beta (SPY) + 50% the
+# diversifying momentum blend. Adding the equity core captures the bull market
+# the bare blend missed and raised both the Sharpe and its in-sample/out-of-sample
+# consistency (PLAN §2K). The SPY core is exempt from the per-name cap.
+CORE_EQUITY_SYMBOL: str = "SPY"
+CORE_EQUITY_WEIGHT: float = 0.5
+
 
 # ─── Strategy parameters ─────────────────────────────────────────────────
 @dataclass(frozen=True)

@@ -14,7 +14,8 @@ from typing import Optional
 
 import pandas as pd
 
-from config import StrategyParams, RiskLimits, TSMOM_UNIVERSE, SECTOR_UNIVERSE
+from config import (StrategyParams, RiskLimits, TSMOM_UNIVERSE, SECTOR_UNIVERSE,
+                    CORE_EQUITY_SYMBOL, CORE_EQUITY_WEIGHT)
 from portfolio.allocator import build_target_weights
 
 
@@ -54,4 +55,12 @@ def latest_target_weights(
         apply_vol_overlay=apply_vol_overlay,
     )
     final = weights["final"].loc[as_of]
+
+    # Core-satellite (deployed strategy): scale the diversifying blend down to
+    # (1 - core) and add the always-on SPY equity core (exempt from the cap).
+    cw = CORE_EQUITY_WEIGHT
+    if cw > 0:
+        final = final * (1.0 - cw)
+        final[CORE_EQUITY_SYMBOL] = final.get(CORE_EQUITY_SYMBOL, 0.0) + cw
+
     return final[final.abs() > 1e-9].sort_values(ascending=False)

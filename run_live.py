@@ -7,9 +7,9 @@ Each run:
 
   1. reads account equity from the Alpaca paper endpoint;
   2. updates the drawdown kill-switch — if tripped, flattens to cash and stops;
-  3. on the first trading day of a new rebalance period (default **weekly** — the
-     backtest showed weekly beats monthly risk-adjusted, PLAN.md §2D), recomputes
-     RHDM target weights and reconciles the book; other days it just monitors.
+  3. on the chosen cadence (default **every 2 days**), recomputes the deployed
+     core-satellite target weights and reconciles the book; other days it just
+     monitors the kill-switch.
 
 Everything is journaled to logs/. **Dry-run by default** — it prints the planned
 orders without sending them. Pass --live to actually submit (paper only).
@@ -25,7 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from config import SETTINGS, TSMOM_UNIVERSE, SECTOR_UNIVERSE, BENCHMARK, AlpacaCredentials
@@ -38,37 +38,44 @@ from execution import journal
 REBALANCE_STATE = Path(__file__).resolve().parent / "logs" / "last_rebalance.json"
 
 
-def _current_period(freq: str) -> str:
-    """Identifier for the current rebalance period: ISO week (weekly) or month."""
-    now = datetime.now(timezone.utc)
-    return now.strftime("%G-W%V") if freq == "weekly" else now.strftime("%Y-%m")
-
-
-def _last_rebalance_period() -> str | None:
+def _last_rebalance_date() -> "date | None":
     if REBALANCE_STATE.exists():
         try:
-            return json.loads(REBALANCE_STATE.read_text()).get("period")
-        except json.JSONDecodeError:
+            return date.fromisoformat(json.loads(REBALANCE_STATE.read_text())["date"])
+        except (json.JSONDecodeError, KeyError, ValueError):
             return None
     return None
 
 
-def _record_rebalance_period(period: str) -> None:
+def _record_rebalance_date(d: "date") -> None:
     REBALANCE_STATE.parent.mkdir(exist_ok=True)
-    REBALANCE_STATE.write_text(json.dumps({"period": period}))
+    REBALANCE_STATE.write_text(json.dumps({"date": d.isoformat()}))
 
 
-def _should_rebalance(period: str, force: bool, monitor_only: bool) -> bool:
+def _should_rebalance(freq: str, force: bool, monitor_only: bool) -> bool:
+    """
+    Rebalance cadence. `freq` is "monthly", "weekly", "daily", or an N-day spec
+    like "2d". Tracks the last rebalance date so a daily-scheduled run only
+    rebalances on the chosen cadence.
+    """
     if monitor_only:
         return False
     if force:
         return True
-    # First run of a new rebalance period → rebalance (uses latest close).
-    return _last_rebalance_period() != period
+    last = _last_rebalance_date()
+    if last is None:
+        return True
+    today = datetime.now(timezone.utc).date()
+    if freq == "monthly":
+        return (today.year, today.month) != (last.year, last.month)
+    if freq == "weekly":
+        return today.isocalendar()[:2] != last.isocalendar()[:2]
+    n = 1 if freq == "daily" else int(freq.rstrip("d"))   # "2d" → every 2 days
+    return (today - last).days >= n
 
 
 def run(live: bool, force_rebalance: bool, monitor_only: bool,
-        lookback_days: int, apply_vol_overlay: bool, freq: str = "weekly") -> None:
+        lookback_days: int, apply_vol_overlay: bool, freq: str = "2d") -> None:
     log = journal.get_logger()
     settings = SETTINGS
     creds = AlpacaCredentials.from_env()
@@ -93,13 +100,13 @@ def run(live: bool, force_rebalance: bool, monitor_only: bool,
         return
 
     # 2. decide whether to rebalance -----------------------------------------
-    period = _current_period(freq)
-    if not _should_rebalance(period, force_rebalance, monitor_only):
-        log.info("No rebalance this %s period (last rebalanced: %s). Monitoring only.",
-                 freq, _last_rebalance_period() or "never")
+    if not _should_rebalance(freq, force_rebalance, monitor_only):
+        log.info("No rebalance due (cadence=%s, last rebalanced: %s). Monitoring only.",
+                 freq, _last_rebalance_date() or "never")
         return
 
     # 3. compute target weights ----------------------------------------------
+    # SPY (the core-satellite equity core) is pulled via BENCHMARK.
     symbols = sorted(set(TSMOM_UNIVERSE) | set(SECTOR_UNIVERSE) | {BENCHMARK})
     start = datetime.now(timezone.utc) - timedelta(days=lookback_days)
     log.info("Pulling %d-day history for %d symbols...", lookback_days, len(symbols))
@@ -123,7 +130,7 @@ def run(live: bool, force_rebalance: bool, monitor_only: bool,
                  p.reason, "" if live else "  [DRY-RUN]")
 
     if live:
-        _record_rebalance_period(period)
+        _record_rebalance_date(datetime.now(timezone.utc).date())
         log.info("Rebalance submitted to paper account.")
     else:
         log.info("Dry-run complete — pass --live to submit. State not advanced.")
@@ -137,8 +144,8 @@ def main() -> None:
     ap.add_argument("--lookback-days", type=int, default=500, help="history window to pull")
     ap.add_argument("--vol-overlay", action="store_true",
                     help="enable the vol overlay (off by default — it hurt OOS, PLAN §2D)")
-    ap.add_argument("--frequency", default="weekly", choices=["weekly", "monthly"],
-                    help="rebalance cadence (default weekly, per backtest §2D)")
+    ap.add_argument("--frequency", default="2d",
+                    help="rebalance cadence: monthly|weekly|daily or N-day (e.g. 2d); default 2d")
     args = ap.parse_args()
     run(live=args.live, force_rebalance=args.rebalance, monitor_only=args.monitor_only,
         lookback_days=args.lookback_days, apply_vol_overlay=args.vol_overlay,

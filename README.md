@@ -1,18 +1,20 @@
 # Alpaca Factor Momentum Trader
 
 A research-grounded, **paper-trading** algorithmic trading system on
-[Alpaca](https://alpaca.markets). It deploys a **blended dual-momentum** strategy
-on liquid ETFs, validated out-of-sample against buy-and-hold SPY *after realistic
-costs*. In the current configuration it **beats buy-and-hold SPY on a
-risk-adjusted basis out-of-sample** (Sharpe **0.81 vs 0.78**) with roughly **a
-third less drawdown** — see the caveats, which matter.
+[Alpaca](https://alpaca.markets). The deployed strategy is a **core-satellite**:
+**50% buy-and-hold SPY** (equity beta) + **50% a blended dual-momentum** book on
+liquid ETFs (the diversifying satellite), rebalanced **every 2 trading days**.
+Out-of-sample (2019–2026) it **beats buy-and-hold SPY risk-adjusted** (Sharpe
+**0.82 vs 0.78**) with lower drawdown — **but read the caveats**: that edge does
+*not* hold up reliably over longer windows (it's ~40% to beat SPY over 2012–26).
 
-## The strategy — Blended Dual Momentum
+## The strategy — Core-Satellite (SPY core + dual-momentum satellite)
 
-Gary Antonacci's **Dual Momentum** combines two established academic edges:
-**absolute** momentum (own-asset trend — "is it going up at all?") and
-**relative** momentum (cross-sectional ranking — "which is strongest?"). The
-deployed algorithm blends one of each, 50/50, long/flat, rebalanced **weekly**.
+The **satellite** is Gary Antonacci's **Dual Momentum** — **absolute** momentum
+(own-asset trend) blended 50/50 with **relative** momentum (cross-sectional
+ranking), long/flat. The **core** is a permanent 50% SPY position that supplies
+the equity upside the bare satellite missed. Adding the core raised both the
+Sharpe and its in-sample/out-of-sample consistency ([PLAN.md §2K](PLAN.md)).
 
 | Sleeve | What it does | Source |
 |---|---|---|
@@ -36,25 +38,25 @@ deployed algorithm blends one of each, 50/50, long/flat, rebalanced **weekly**.
 - **Sleeve B** trades the 11 SPDR sector ETFs (`XLK, XLF, XLE, XLV, XLI, XLY,
   XLP, XLU, XLB, XLRE, XLC`).
 
-**Each weekly rebalance, using only data through the prior close:**
-1. **Sleeve A — absolute momentum.** For each of the 10 ETFs compute its
-   **12-month total return**. Hold an equal **1/10** slice of every ETF whose
-   12-month return **> 0**; everything else is cash. (Long/flat — never short.)
-2. **Sleeve B — relative momentum (sector rotation).** Rank the 11 sectors by
-   **12-1 month** return (12-month return skipping the most recent month). Hold
-   the **top 3** equal-weight (1/3 each) — but only those whose own 12-1
-   momentum is **> 0** (Antonacci dual-momentum filter); the rest is cash.
-3. **Blend 50/50:** `w = 0.5 · A + 0.5 · B`.
-4. **Cap** any single ETF at **25%** of equity. Unallocated weight is held in
-   cash, earning the T-bill rate.
+**Every 2 trading days, using only data through the prior close:**
+1. **Satellite — Sleeve A (absolute momentum).** For each of the 10 ETFs compute
+   its **12-month total return**. Hold an equal **1/10** slice of every ETF whose
+   12-month return **> 0**; the rest is cash. (Long/flat — never short.)
+2. **Satellite — Sleeve B (relative momentum / sector rotation).** Rank the 11
+   sectors by **12-1 month** return. Hold the **top 3** equal-weight (1/3 each) —
+   but only those whose own 12-1 momentum is **> 0** (dual-momentum filter).
+3. **Blend the satellite 50/50:** `sat = 0.5 · A + 0.5 · B`, cap any single ETF
+   at **25%**.
+4. **Core-satellite:** final book = **0.5 · SPY (core) + 0.5 · sat** (the SPY core
+   is exempt from the 25% cap). Unallocated weight earns the T-bill rate.
 
 **No volatility overlay** (tested and removed). **Trade the next session** after
-the signal (1-day execution lag — no look-ahead). **Costs:** 3 bps one-way
-(slippage + half-spread) on turnover. Full spec & research trail in
-[PLAN.md](PLAN.md) (§2C rules · §2D overlay removal · §2E–§2F variant tests).
+the signal (1-day execution lag — no look-ahead). **Costs:** 3 bps one-way on
+turnover. Full spec & research trail in [PLAN.md](PLAN.md) (§2C rules · §2D
+overlay removal · §2E–§2F universe · §2J lookback · §2K core-satellite).
 
 ```bash
-python run_backtest.py            # 15y weekly backtest, OOS split, full table
+python run_backtest.py            # 15y backtest, OOS split, full comparison table
 ```
 
 ### Backtest result (15y real data, OOS, after costs, look-ahead-free)
@@ -63,24 +65,26 @@ Honest accounting is baked in: a **1-day execution lag**, idle cash earning the
 **real T-bill rate** (BIL), and Sharpe/Sortino measured as **excess over that
 risk-free** (not over zero).
 
-| Out-of-sample (2019–2026) | **Deployed** (blend, no overlay) | Buy & Hold SPY |
+| Out-of-sample (2019–2026) | **Deployed** (core-satellite) | Buy & Hold SPY |
 |---|---|---|
-| **Sharpe** | **0.81** | 0.78 |
-| Annualized return | 12.0% | 17.2% |
-| Annualized volatility | 11.7% | 19.5% |
-| Max drawdown | **−21.7%** | −33.7% |
+| **Sharpe** | **0.82** | 0.78 |
+| Annualized return | 14.7% | 17.2% |
+| Annualized volatility | 15.1% | 19.5% |
+| Max drawdown | **−27.9%** | −33.7% |
 
-✅ Beats SPY **risk-adjusted** (H3) · ✅ roughly **⅓ less drawdown** (H2).
+✅ Beats SPY **risk-adjusted** (H3) · ✅ lower drawdown (H2) · ✅ beats best sleeve (H1).
 
 **Honest caveats — read these before trusting the result:**
-- **The edge is thin.** 0.81 vs 0.78 Sharpe is **within single-window noise**.
-  It needs a *second* out-of-sample window before it's believable.
-- **It earns less than SPY in absolute terms** (12% vs 17%/yr). It wins on
-  *risk-adjusted* return and drawdown — a smoother ride, not a richer one.
-- **Sleeve A's universe is regime-dependent** (strong 2019–26, weak in-sample
-  2011–18). The original 6-ETF cross-asset set (`TSMOM_UNIVERSE_CORE6` in
-  [config.py](config.py)) is a *more consistent* alternative and a one-line
-  revert; it posts the same ~0.81 OOS with a stronger in-sample Sharpe.
+- **"Beats SPY" does NOT hold up over longer windows.** The 2019–2026 win is
+  real but window-specific. On 2012–2026 the core-satellite Sharpe is 0.81 vs
+  SPY's 0.83, and a 1000× bootstrap puts the probability it beats SPY at only
+  **~40%** ([PLAN.md §2K/§2I](PLAN.md)). SPY's modern Sharpe is exceptionally
+  hard to beat after costs.
+- **It earns less than SPY in absolute terms** (14.7% vs 17.2%/yr). Its durable,
+  repeatable edge is **drawdown / crash protection** (−16% vs SPY's −55% in
+  2008), not return — think of it as crash-insured equity, not an index-beater.
+- **What it reliably is:** a positive-Sharpe book (bootstrap P(Sharpe>0) ≈ 100%)
+  that tracks SPY with a diversification cushion.
 
 ## Security
 
@@ -101,24 +105,22 @@ python -m pytest tests/ -q    # offline unit tests (reconciliation + kill-switch
 ## Live (paper) deployment — Phase 2 plumbing
 
 `run_live.py` is the scheduler entrypoint: it checks the drawdown kill-switch
-and, on the first trading day of each **week**, recomputes the blended targets
-(identical to the backtest) and reconciles the paper book. **Dry-run by default;
-no vol overlay** (matching the deployed strategy).
+and, **every 2 trading days**, recomputes the core-satellite targets (identical
+to the backtest) and reconciles the paper book. **Dry-run by default.**
 
 ```bash
 python run_live.py                # monitor + print the order plan, send nothing
-python run_live.py --rebalance    # force-compute this week's plan (still dry-run)
+python run_live.py --rebalance    # force-compute today's plan (still dry-run)
 python run_live.py --live         # actually submit to the PAPER account
 ```
 
-> Deployment is **gated** behind `--live`. The strategy now clears the headline
-> bar (beats SPY risk-adjusted OOS), but the edge is thin and rests on a single
-> out-of-sample window — validate on a second window before trusting real money.
-> The wiring (reconciliation, notional orders, persisted high-water-mark
-> kill-switch, journaling to `logs/`) is built and unit-tested.
+> Deployment is **gated** behind `--live` (dry-run otherwise). The wiring
+> (reconciliation, notional orders, persisted high-water-mark kill-switch,
+> journaling to `logs/`) is built and unit-tested. Paper-only: the executor
+> refuses any non-paper endpoint unless explicitly overridden.
 
 ## Roadmap
 
-See [PLAN.md](PLAN.md). Backtest-first discipline: the deployed blend beats
-buy-and-hold SPY risk-adjusted out-of-sample after costs; the next step before
-live capital is a **second out-of-sample window** to confirm the edge is real.
+See [PLAN.md](PLAN.md). The deployed core-satellite beats buy-and-hold SPY
+risk-adjusted on 2019–2026 but not reliably over longer windows — paper-trade it
+forward and compare live results to the backtest before any real capital.

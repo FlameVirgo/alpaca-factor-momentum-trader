@@ -19,7 +19,8 @@ import argparse
 
 import pandas as pd
 
-from config import SETTINGS, TSMOM_UNIVERSE, SECTOR_UNIVERSE, BENCHMARK
+from config import (SETTINGS, TSMOM_UNIVERSE, SECTOR_UNIVERSE, BENCHMARK,
+                    CORE_EQUITY_SYMBOL, CORE_EQUITY_WEIGHT)
 from data.market_data import get_daily_closes
 from portfolio.allocator import build_target_weights
 from backtest.engine import run_backtest, buy_and_hold, rebalance_dates
@@ -78,6 +79,15 @@ def run(refresh: bool, oos_start: str, freq: str = "weekly") -> None:
         print(f"  {name:34} {r.turnover.sum() / years:6.1f}x/yr")
     print()
 
+    # DEPLOYED strategy: core-satellite = (1-cw)*blend + cw*SPY (cap-exempt core).
+    cw = CORE_EQUITY_WEIGHT
+    core_w = blended_only["final"] * (1.0 - cw)
+    if CORE_EQUITY_SYMBOL not in core_w.columns:
+        core_w[CORE_EQUITY_SYMBOL] = 0.0
+    core_w[CORE_EQUITY_SYMBOL] = core_w[CORE_EQUITY_SYMBOL] + cw
+    results["DEPLOYED: Core-sat (50% SPY + blend)"] = run_backtest(
+        prices, core_w, costs, rf_returns=rf)
+
     # Benchmarks are fully invested → no cash leg, computed directly.
     series: dict[str, pd.Series] = {name: r.returns for name, r in results.items()}
     series["Benchmark — Buy & Hold SPY"] = buy_and_hold(prices, BENCHMARK)
@@ -114,8 +124,8 @@ def run(refresh: bool, oos_start: str, freq: str = "weekly") -> None:
     oos = lambda n: summary(
         series[n].loc[series[n].index >= oos_start], name=n, rf=rf
     )
-    # The DEPLOYED strategy is now the 50/50 blend with NO vol overlay.
-    deployed = oos("Blended (no vol overlay)")
+    # The DEPLOYED strategy is the core-satellite (50% SPY + 50% blend, no overlay).
+    deployed = oos("DEPLOYED: Core-sat (50% SPY + blend)")
     tsmom = oos("Sleeve A — TSMOM only")
     sector = oos("Sleeve B — Sector rotation only")
     spy = oos("Benchmark — Buy & Hold SPY")
