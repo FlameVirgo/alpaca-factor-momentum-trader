@@ -1,0 +1,33 @@
+name: weekly-report
+
+# Emails a weekly results summary (equity, P&L, positions, trades, vs SPY) read
+# straight from the Alpaca paper account. Read-only — places no orders.
+# Runs Saturday 13:00 UTC, after the trading week closes.
+
+on:
+  schedule:
+    - cron: "0 13 * * 6"     # Saturdays 13:00 UTC
+  workflow_dispatch: {}        # manual "Run workflow" button
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Send weekly results email
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          ALPACA_BASE_URL: ${{ secrets.ALPACA_BASE_URL }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          REPORT_TO: ${{ secrets.REPORT_TO }}
+        run: python weekly_report.py

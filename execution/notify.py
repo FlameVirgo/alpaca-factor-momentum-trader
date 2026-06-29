@@ -37,23 +37,30 @@ def _cfg() -> dict:
     }
 
 
-def send(subject: str, body: str) -> bool:
-    """Send one email. Returns True if sent; no-ops (False) if not configured."""
+def send(subject: str, body: str, to: str | None = None, html: str | None = None) -> bool:
+    """
+    Send one email. `to` overrides NOTIFY_TO (e.g. a real inbox for HTML
+    reports vs. the SMS gateway for trade alerts). `html` adds an HTML
+    alternative. No-ops (returns False) if SMTP isn't configured.
+    """
     c = _cfg()
-    if not (c["user"] and c["password"] and c["to"]):
-        log.info("Notifications not configured (SMTP_USER/PASSWORD/NOTIFY_TO) — skipping.")
+    recipient = to or c["to"]
+    if not (c["user"] and c["password"] and recipient):
+        log.info("Notifications not configured (SMTP_USER/PASSWORD/recipient) — skipping.")
         return False
     msg = EmailMessage()
     msg["From"] = c["user"]
-    msg["To"] = c["to"]
+    msg["To"] = recipient
     msg["Subject"] = subject
     msg.set_content(body)
+    if html:
+        msg.add_alternative(html, subtype="html")
     try:
         with smtplib.SMTP(c["host"], c["port"], timeout=20) as s:
             s.starttls(context=ssl.create_default_context())
             s.login(c["user"], c["password"])
             s.send_message(msg)
-        log.info("Notification sent to %s", c["to"])
+        log.info("Notification sent to %s", recipient)
         return True
     except Exception as e:  # never let a notification failure crash trading
         log.warning("Notification failed: %s", e)
