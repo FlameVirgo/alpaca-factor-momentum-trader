@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -36,6 +37,41 @@ from execution.risk_monitor import RiskMonitor
 from execution import journal, notify
 
 REBALANCE_STATE = Path(__file__).resolve().parent / "logs" / "last_rebalance.json"
+REPO_ROOT = Path(__file__).resolve().parent
+
+# GitHub pauses a scheduled workflow after 60 days of zero repo activity. Warn ~1
+# week before that so the bot doesn't silently stop — a single push resets it.
+INACTIVITY_WARN_DAYS = 53
+INACTIVITY_PAUSE_DAYS = 60
+
+
+def _days_since_last_commit() -> "int | None":
+    """Days since the last commit (proxy for GitHub repo activity)."""
+    try:
+        out = subprocess.run(["git", "log", "-1", "--format=%cI"], cwd=REPO_ROOT,
+                             capture_output=True, text=True, timeout=10)
+        if out.returncode != 0 or not out.stdout.strip():
+            return None
+        committed = datetime.fromisoformat(out.stdout.strip())
+        return (datetime.now(timezone.utc) - committed).days
+    except Exception:
+        return None
+
+
+def _check_inactivity_warning(live: bool, log) -> None:
+    """Text a heads-up ~1 week before GitHub would pause the scheduled workflow."""
+    days = _days_since_last_commit()
+    if days is None:
+        return
+    if INACTIVITY_WARN_DAYS <= days < INACTIVITY_PAUSE_DAYS:
+        left = INACTIVITY_PAUSE_DAYS - days
+        log.warning("Repo inactive %d days — GitHub pauses the schedule in %d.", days, left)
+        if live:
+            notify.send(
+                "Trading bot: action needed soon",
+                f"Heads up: GitHub will PAUSE your trading bot's schedule in ~{left} "
+                f"day(s) (repo inactive {days}d). Push any commit to the repo to keep "
+                "it running.")
 
 
 def _last_rebalance_date() -> "date | None":
@@ -82,6 +118,9 @@ def run(live: bool, force_rebalance: bool, monitor_only: bool,
     log.info("Endpoint: %s (paper=%s)  rebalance=%s", creds.base_url, creds.is_paper, freq)
 
     executor = AlpacaExecutor(creds=creds, dry_run=not live, min_trade=25.0)
+
+    # 0. maintenance: warn before GitHub pauses the schedule ------------------
+    _check_inactivity_warning(live, log)
 
     # 1. equity + kill-switch -------------------------------------------------
     equity = executor.account_equity()
