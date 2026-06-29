@@ -33,7 +33,7 @@ from data.alpaca_data import get_daily_closes
 from portfolio.target import latest_target_weights
 from execution.alpaca_executor import AlpacaExecutor
 from execution.risk_monitor import RiskMonitor
-from execution import journal
+from execution import journal, notify
 
 REBALANCE_STATE = Path(__file__).resolve().parent / "logs" / "last_rebalance.json"
 
@@ -97,6 +97,8 @@ def run(live: bool, force_rebalance: bool, monitor_only: bool,
         journal.log_event("killswitch", equity=equity, drawdown=status.drawdown,
                           dry_run=not live)
         executor.flatten()
+        if live:
+            notify.notify_killswitch(equity, status.drawdown)
         return
 
     # 2. decide whether to rebalance -----------------------------------------
@@ -131,6 +133,8 @@ def run(live: bool, force_rebalance: bool, monitor_only: bool,
 
     if live:
         _record_rebalance_date(datetime.now(timezone.utc).date())
+        if plans:
+            notify.notify_trades(plans, equity)
         log.info("Rebalance submitted to paper account.")
     else:
         log.info("Dry-run complete — pass --live to submit. State not advanced.")

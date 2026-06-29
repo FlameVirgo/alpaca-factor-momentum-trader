@@ -1,0 +1,41 @@
+name: paper-trade
+
+# Runs the deployed core-satellite strategy against the Alpaca PAPER account on
+# GitHub's servers — no local machine needed. Cadence ≈ every 2 trading days
+# (Mon/Wed/Fri; markets are closed weekends), shortly after the US market opens.
+# All credentials come from encrypted repo secrets (Settings → Secrets → Actions):
+#   ALPACA_API_KEY, ALPACA_SECRET_KEY, ALPACA_BASE_URL
+#   (optional notifications) SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, NOTIFY_TO
+
+on:
+  schedule:
+    - cron: "45 14 * * 1,3,5"   # 14:45 UTC Mon/Wed/Fri (~after US open year-round)
+  workflow_dispatch: {}          # manual "Run workflow" button
+
+# Avoid overlapping runs.
+concurrency:
+  group: paper-trade
+  cancel-in-progress: false
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Rebalance the paper account
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          ALPACA_BASE_URL: ${{ secrets.ALPACA_BASE_URL }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          NOTIFY_TO: ${{ secrets.NOTIFY_TO }}
+        run: python run_live.py --live --rebalance

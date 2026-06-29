@@ -1,0 +1,77 @@
+"""
+Trade notifications via SMTP email — free.
+
+Sends a short message when the live system trades. The recipient (NOTIFY_TO) can
+be either a normal email address OR a carrier **email-to-SMS gateway** address,
+which delivers as a regular text at no cost beyond your normal text plan, e.g.:
+    Verizon : 5551234567@vtext.com
+    AT&T    : 5551234567@txt.att.net
+    T-Mobile: 5551234567@tmomail.net
+No paid service (Twilio etc.) is used.
+
+All config comes from environment variables (set as GitHub Actions secrets):
+    SMTP_HOST (default smtp.gmail.com), SMTP_PORT (default 587),
+    SMTP_USER, SMTP_PASSWORD (a Gmail *app password*), NOTIFY_TO
+
+If SMTP isn't configured the functions no-op — notifications must never break a
+trading run.
+"""
+from __future__ import annotations
+
+import logging
+import os
+import smtplib
+import ssl
+from email.message import EmailMessage
+
+log = logging.getLogger("rhdm")
+
+
+def _cfg() -> dict:
+    return {
+        "host": os.getenv("SMTP_HOST", "smtp.gmail.com"),
+        "port": int(os.getenv("SMTP_PORT", "587")),
+        "user": os.getenv("SMTP_USER", ""),
+        "password": os.getenv("SMTP_PASSWORD", ""),
+        "to": os.getenv("NOTIFY_TO", ""),
+    }
+
+
+def send(subject: str, body: str) -> bool:
+    """Send one email. Returns True if sent; no-ops (False) if not configured."""
+    c = _cfg()
+    if not (c["user"] and c["password"] and c["to"]):
+        log.info("Notifications not configured (SMTP_USER/PASSWORD/NOTIFY_TO) — skipping.")
+        return False
+    msg = EmailMessage()
+    msg["From"] = c["user"]
+    msg["To"] = c["to"]
+    msg["Subject"] = subject
+    msg.set_content(body)
+    try:
+        with smtplib.SMTP(c["host"], c["port"], timeout=20) as s:
+            s.starttls(context=ssl.create_default_context())
+            s.login(c["user"], c["password"])
+            s.send_message(msg)
+        log.info("Notification sent to %s", c["to"])
+        return True
+    except Exception as e:  # never let a notification failure crash trading
+        log.warning("Notification failed: %s", e)
+        return False
+
+
+def notify_trades(plans, equity: float) -> None:
+    """Text/email a concise summary of the orders just submitted."""
+    if not plans:
+        return
+    head = ", ".join(f"{p.side[0].upper()}{p.symbol}" for p in plans[:8])
+    more = f" +{len(plans) - 8} more" if len(plans) > 8 else ""
+    body = (f"Alpaca paper rebalance: {len(plans)} order(s), equity "
+            f"${equity:,.0f}.\n{head}{more}")
+    send(f"Trade alert: {len(plans)} order(s)", body)
+
+
+def notify_killswitch(equity: float, drawdown: float) -> None:
+    send("KILL SWITCH tripped — flattened to cash",
+         f"Drawdown {drawdown:.1%} breached the limit. Book flattened. "
+         f"Equity ${equity:,.0f}.")

@@ -74,6 +74,20 @@ risk-free** (not over zero).
 
 ✅ Beats SPY **risk-adjusted** (H3) · ✅ lower drawdown (H2) · ✅ beats best sleeve (H1).
 
+### Probability it beats the S&P 500 (1000× block bootstrap)
+
+The single most important number, and it **depends heavily on the window**:
+
+| Window | **P(strategy Sharpe > SPY Sharpe)** |
+|---|---|
+| 2019–2026 (recent / deploy window) | **~71%** |
+| 2012–2026 (longer, the honest test) | **~40%** |
+
+So on recent data it beats SPY about **7 times in 10**, but over a longer, more
+representative window it's only ~**4 in 10** — i.e. **more likely to lose to SPY
+than beat it**. Treat the headline win as window-specific, not a sure thing.
+([PLAN.md §2K/§2I](PLAN.md) for the full bootstrap.)
+
 **Honest caveats — read these before trusting the result:**
 - **"Beats SPY" does NOT hold up over longer windows.** The 2019–2026 win is
   real but window-specific. On 2012–2026 the core-satellite Sharpe is 0.81 vs
