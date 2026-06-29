@@ -7,7 +7,7 @@ returned as a tidy wide DataFrame of adjusted close prices indexed by date.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Iterable, Optional
 
 import pandas as pd
@@ -38,10 +38,12 @@ def get_daily_closes(
     """
     from alpaca.data.requests import StockBarsRequest
     from alpaca.data.timeframe import TimeFrame
-    from alpaca.data.enums import Adjustment
+    from alpaca.data.enums import Adjustment, DataFeed
 
     creds = creds or AlpacaCredentials.from_env()
-    end = end or datetime.now(timezone.utc)
+    # Free paper accounts can't query the most recent ~15 min of SIP data; end a
+    # day back and use the IEX feed (the free tier) for daily bars.
+    end = end or (datetime.now(timezone.utc) - timedelta(days=1))
     symbols = list(symbols)
 
     client = _hist_client(creds)
@@ -51,6 +53,7 @@ def get_daily_closes(
         start=start,
         end=end,
         adjustment=Adjustment.ALL,  # split + dividend adjusted
+        feed=DataFeed.IEX,          # free-tier feed (SIP requires a paid plan)
     )
     bars = client.get_stock_bars(request)
 
