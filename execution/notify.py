@@ -61,13 +61,13 @@ def send(subject: str, body: str) -> bool:
 
 
 def notify_trades(plans, equity: float) -> None:
-    """Text/email a concise summary of the orders just submitted."""
+    """Text/email the full list of orders just submitted (largest first)."""
     if not plans:
         return
-    head = ", ".join(f"{p.side[0].upper()}{p.symbol}" for p in plans[:8])
-    more = f" +{len(plans) - 8} more" if len(plans) > 8 else ""
-    body = (f"Alpaca paper rebalance: {len(plans)} order(s), equity "
-            f"${equity:,.0f}.\n{head}{more}")
+    lines = [f"{p.side.upper()} {p.symbol} ${p.notional:,.0f} ({p.reason})"
+             for p in sorted(plans, key=lambda x: -x.notional)]
+    body = (f"Alpaca paper rebalance: {len(plans)} order(s), equity ${equity:,.0f}\n"
+            + "\n".join(lines))
     send(f"Trade alert: {len(plans)} order(s)", body)
 
 
