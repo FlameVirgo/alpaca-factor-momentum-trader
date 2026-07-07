@@ -466,7 +466,7 @@ Alpaca/Benzinga News API.
 ## 3. Why Alpaca + $100k Paper Fits
 
 - `alpaca-py` SDK: `StockHistoricalDataClient` (5+ yrs bars) + market/bracket orders.
-- $100k paper sidesteps the **PDT rule** entirely; monthly rebalancing is nowhere near day-trade limits.
+- Day-trade limits are a non-issue: FINRA retired the PDT rule in June 2026 (replaced by an intraday margin framework), and the every-2-days rebalance never day-trades anyway. The system reads only `equity`/`cash`/`buying_power` — none of the removed `pattern_day_trader`/`daytrading_*` API fields.
 - Paper endpoint = real-time live market data, simulated fills. Same code as live (one URL swap).
 
 ---

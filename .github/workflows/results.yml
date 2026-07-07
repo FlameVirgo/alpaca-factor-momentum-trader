@@ -1,0 +1,46 @@
+name: results-page
+
+# Refreshes results.md from the Alpaca paper account (equity, P&L, positions,
+# fills, vs SPY) and commits it. Runs Mon/Wed/Fri after the US close, so the
+# repo gets a commit every 2-3 days — which also resets GitHub's 60-day
+# inactivity timer and keeps all scheduled workflows (incl. paper-trade) alive.
+# Read-only against Alpaca — places no orders.
+
+on:
+  schedule:
+    - cron: "30 21 * * 1,3,5"   # 21:30 UTC Mon/Wed/Fri (~after US close)
+  workflow_dispatch: {}           # manual "Run workflow" button
+
+permissions:
+  contents: write                 # needed to push the results.md commit
+
+concurrency:
+  group: results-page
+  cancel-in-progress: false
+
+jobs:
+  results:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Generate results.md from the Alpaca account
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+          ALPACA_BASE_URL: ${{ secrets.ALPACA_BASE_URL }}
+        run: python results_page.py
+      - name: Commit and push results.md
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add results.md
+          # Commit even a timestamp-only change; skip cleanly if truly identical.
+          git commit -m "Update results page ($(date -u +%Y-%m-%d))" || {
+            echo "results.md unchanged — nothing to commit."; exit 0; }
+          git push

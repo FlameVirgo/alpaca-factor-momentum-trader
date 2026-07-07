@@ -100,6 +100,14 @@ than beat it**. Treat the headline win as window-specific, not a sure thing.
 - **What it reliably is:** a positive-Sharpe book (bootstrap P(Sharpe>0) ≈ 100%)
   that tracks SPY with a diversification cushion.
 
+## Live results
+
+**[results.md](results.md)** tracks the paper account live — equity, P&L since
+inception, positions, recent fills, and performance vs buy-and-hold SPY. A
+GitHub Action ([results.yml](.github/workflows/results.yml)) regenerates and
+commits it every Mon/Wed/Fri after the close; those commits also reset GitHub's
+60-day inactivity timer, so the scheduled trading workflow never gets paused.
+
 ## Security
 
 - API keys are loaded from a **gitignored `.env`** — never committed.
